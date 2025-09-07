@@ -142,7 +142,7 @@ if(!is_dir($folder) && !@mkdir($folder, 0777, true)) {
 
 // Vérifie encore le mime type pour en extraire le type
 if(!preg_match('#^image/(.*)$#i', $_FILES['image']['type'], $m)) {
-	header("HTTP/1.0 500 C\'était pas supposé arriver.");
+	header("HTTP/1.0 500 C'était pas supposé arriver.");
 	exit;
 }
 
@@ -158,7 +158,7 @@ if(is_file($destination)) {
 
 // Écrire le fichier dans l'arbre de dossiers
 if(!@file_put_contents($destination, $bytes)) {
-	header("HTTP/1.0 500 Pas capable écrire le fichier.");
+	header("HTTP/1.0 500 Pas capable écrire le fichier :(");
 	exit;
 }
 
