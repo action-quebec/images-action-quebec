@@ -1,0 +1,31 @@
+# .htaccess (DocumentRoot)
+Options -MultiViews -Indexes
+RewriteEngine On
+
+# 404 personnalisé (sans redirection ; l’URL reste telle quelle)
+ErrorDocument 404 /404.php
+
+# 0) Protéger les JSON à la racine : toujours 404 (pas de redirection)
+RewriteRule ^[^/]+\.json$ - [R=404,L]
+
+# 1) Fichiers/dossiers réels : servir tel quel
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 2) "abcdefgh.ext"  ->  "/images/ab/cd/ef/abcdefgh.ext"  **si** le fichier existe
+#    ID = 8 chars Base64url (A–Z a–z 0–9 - _)
+#    Extensions supportées : webp | avif | png | jpg/jpeg | gif  (en minuscules)
+RewriteCond %{DOCUMENT_ROOT}/images/$2/$3/$4/$1.$6 -f
+RewriteRule ^(([A-Za-z0-9_-]{2})([A-Za-z0-9_-]{2})([A-Za-z0-9_-]{2})([A-Za-z0-9_-]{2}))\.(webp|avif|png|jpe?g|gif)$ images/$2/$3/$4/$1.$6 [L]
+
+# 3) Le root "/" va toujours à index.php (réécriture interne)
+RewriteRule ^$ index.php [L]
+
+# (Optionnel) Front controller global
+#RewriteCond %{REQUEST_FILENAME} !-f
+#RewriteCond %{REQUEST_FILENAME} !-d
+#RewriteRule ^ index.php [L]
+
+# (Optionnel) Interdire l’accès direct au chemin physique /images/
+RewriteRule ^images/ - [R=404,L]
