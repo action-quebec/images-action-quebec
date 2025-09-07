@@ -1,1 +1,1 @@
-Le dossier images doit avoir les droits en écriture, lecture et création de dossiers.
+Le dossier /images doit avoir les droits en écriture, lecture et création de dossiers.
