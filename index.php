@@ -1,7 +1,25 @@
 <?php
+/**
+ * Titre:  Webservice simple pour dépot d'images
+ * Auteur: Maxime Larrivée-Roy <mlarriveeroy@gmail.com>
+ * Date:   7 septembre 2025
+ */
 
-// Load le fichier de configuration
-$config = json_decode(file_get_contents(__DIR__ . '/config.json'));
+
+// Load le fichier de configuration / Voir config.dummy.json
+if(!$config = json_decode(@file_get_contents(__DIR__ . '/config.json'))) {
+	header('HTTP/1.0 500 Mais où t\'as mis le putain de fichier de configuration?');
+	exit;
+}
+
+
+// Rejeter toutes requêtes autre que POST ou OPTIONS 
+if(!in_array($_SERVER['REQUEST_METHOD'], ['OPTIONS', 'POST'])) {
+	header('HTTP/1.0 404 Avez-vous perdu votre poisson ?');
+	include(__DIR__ . '/404.php');
+	exit;
+}
+
 
 // Vérifier l'origine de la requête
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -12,10 +30,12 @@ if ($origin && in_array($origin, $config->allowed, true)) {
 	header('Access-Control-Allow-Credentials: true');
 }
 
+
 // Les méthodes qu'on accepte
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Max-Age: 86400');
+
 
 // Preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -23,21 +43,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 	exit;
 }
 
-// Authentification
-if(!isset($_SERVER['PHP_AUTH_USER'])) {
-	header('HTTP/1.0 404 Tu cherches le trouble?');
+
+// Vérifier si une authentification est présente
+if(!($auth = getallheaders()['Authorization'] ?? null)) {
+	header('HTTP/1.0 404 Plaît-il ?');
 	include(__DIR__ . '/404.php');
 	exit;
-} elseif($_SERVER['PHP_AUTH_USER'] !== 'admin' || $_SERVER['PHP_AUTH_PW'] !== $config->KEY) {
+}
+
+
+// Vérifier si le Bearer token est présent
+if(!preg_match('#^Bearer\s+(.*)$#i', $auth, $m)) {
+	header('HTTP/1.0 404 On ne parle pas la même langue.');
+	include(__DIR__ . '/404.php');
+	exit;
+}
+
+
+// Vérifier si le token est valide
+// Utiliser une DB de tokens à la place du fichier de config
+if(!in_array($m[1], $config->tokens)) {
 	header('HTTP/1.0 401 Vous ne passerez pas!');
 	exit;
 }
 
-// Une image est-elle présente?
+
+// Une image est-elle présente dans la requête?
 if(empty($_FILES['image'])) {
 	header('HTTP/1.0 400 As-tu oublié quelque chose?');
 	exit;
 }
+
 
 // Est-ce qu'il y a eu une erreur d'upload?
 if($_FILES['image']['error']) {
@@ -45,11 +81,13 @@ if($_FILES['image']['error']) {
 	exit;
 }
 
+
 // Est-ce que le fichier est vide?
 if(!$_FILES['image']['size']) {
 	header('HTTP/1.0 400 Ta boîte est vide.');
 	exit;
 }
+
 
 // Est-ce que le fichier dépasse la grosseur maximale?
 if($_FILES['image']['size'] > $config->maxsize) {
@@ -57,19 +95,74 @@ if($_FILES['image']['size'] > $config->maxsize) {
 	exit;
 }
 
+
 // Est-ce que le fichier est un type d'image accepté?
 if(!in_array($_FILES['image']['type'], $config->accepted)) {
 	header('HTTP/1.0 422 Drôle de format d\'image...');
 	exit;
 }
 
+
 // Vérifier l'accessibilité du fichier temporaire
-if(!is_file($_FILE['image']['tmp_name'])) {
+if(!is_file($_FILES['image']['tmp_name'])) {
 	header('HTTP/1.0 500 Woups j\'ai perdu le fichier...');
 	exit;
 }
 
-	
+
+// Lire le fichier temporaire
+if(!$bytes = @file_get_contents($_FILES['image']['tmp_name'])) {
+	header('HTTP/1.0 500 Ma maman veut pas que je lise le fichier!');
+	exit;
+}
 
 
-print_r($_FILES);
+// Génère un hashing sécuritaire
+$slug = '';
+$buffer = $bits = $i = 0;
+$hash = hash('sha256', $bytes, true);
+$alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
+while ($i < strlen($hash) && strlen($slug) < 8) {
+	$buffer = ($buffer << 8) | ord($hash[$i++]);
+	$bits += 8;
+	while ($bits >= 5 && strlen($slug) < 8) {
+		$bits -= 5;
+		$slug .= $alphabet[($buffer >> $bits) & 31];
+	}
+}
+
+
+// Décompose le hashing pour créer un arbre de dossiers
+$folder = __DIR__ . '/images/' . join('/', array_slice(str_split($slug, 2), 0, 3));
+if(!is_dir($folder) && !@mkdir($folder, 0777, true)) {
+	header('HTTP/1.0 500 Ouff je pense que je n\'ai pas les droits.');
+	exit;
+}
+
+
+// Vérifie encore le mime type pour en extraire le type
+if(!preg_match('#^image/(.*)$#i', $_FILES['image']['type'], $m)) {
+	header('HTTP/1.0 500 C\'était pas supposé arriver.');
+	exit;
+}
+
+
+// Construit l'URL et vérifie si le fichier existe déjà
+$destination = $folder . '/' . $slug . '.' . preg_replace('#jpe?g#i', 'jpg', $m[1]);
+$url = $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'] . '/' . pathinfo($destination, PATHINFO_BASENAME);
+if(is_file($destination)) {
+	echo $url;
+	exit;
+}
+
+
+// Écrire le fichier dans l'arbre de dossiers
+if(!@file_put_contents($destination, $bytes)) {
+	header('HTTP/1.0 500 Pas capable écrire le fichier.');
+	exit;
+}
+
+
+// Bonsoir elle est partie!
+echo $url;
+exit;
