@@ -16,7 +16,7 @@ if(!$config = json_decode(@file_get_contents(__DIR__ . '/config.json'))) {
 // Rejeter toutes requêtes autre que POST ou OPTIONS 
 if(!in_array($_SERVER['REQUEST_METHOD'], ['OPTIONS', 'POST'])) {
 	header("HTTP/1.0 404 Avez-vous perdu votre poisson ?");
-	include(__DIR__ . '/404.php');
+	readfile(__DIR__ . '/404.html');
 	exit;
 }
 
