@@ -149,7 +149,7 @@ if(!preg_match('#^image/(.*)$#i', $_FILES['image']['type'], $m)) {
 
 // Construit l'URL et vérifie si le fichier existe déjà
 $destination = $folder . '/' . $slug . '.' . preg_replace('#jpe?g#i', 'jpg', $m[1]);
-$url = $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'] . '/' . pathinfo($destination, PATHINFO_BASENAME);
+$url = (strtolower($_SERVER['HTTPS']) == 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/' . pathinfo($destination, PATHINFO_BASENAME);
 if(is_file($destination)) {
 	echo $url;
 	exit;
